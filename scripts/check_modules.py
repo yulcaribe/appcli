@@ -32,11 +32,18 @@ def stock_abi_allocator_check(path: Path) -> bool:
         print("BLOCKED: cannot disassemble RtmpOsStatsAlloc", process.stderr[:300])
         return False
     direct_slab_alloc = "kmalloc_caches" in assembly and "kmem_cache_alloc" in assembly
+    # The genuine ZTE driver's stats allocation is 0x70 bytes (112).
+    # The generic build used 0x5c bytes (92), a distinct ABI mismatch.
+    # The source's explicit allocation size is visible in this symbol.
+    stock_stats_size = "0x70" in assembly
+    print("Stock ZTE net_device_stats allocation size (0x70):", stock_stats_size)
+    if not stock_stats_size:
+        print("BLOCKED: candidate net_device_stats layout differs from ZTE stock")
     print("KNOWN-CRASH allocator path (kmalloc_caches -> kmem_cache_alloc):", direct_slab_alloc)
     if direct_slab_alloc:
         print("BLOCKED: exact path caused MIPS Oops in kmem_cache_alloc on H298A")
     # Lack of known-bad signature does not prove ZTE ABI compatibility.
-    return not direct_slab_alloc
+    return bool(not direct_slab_alloc and stock_stats_size)
 
 
 def inspect(path: Path) -> bool:
