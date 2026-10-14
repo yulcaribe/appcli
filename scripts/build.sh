@@ -64,6 +64,29 @@ echo "::group::Prepare MT7510-family Linux 2.6.36 kernel (NOT original ZTE kerne
 cp "$KERNEL/mt7510_config" "$KERNEL/.config"
 sed -i 's/^CONFIG_LOCALVERSION_AUTO=y/# CONFIG_LOCALVERSION_AUTO is not set/' "$KERNEL/.config"
 : > "$KERNEL/.scmversion"
+# Linux 2.6.36 expects version-specific compiler-gccN.h. Its vendor tree
+# only knows GCC 4, while Ubuntu 22.04 ships MIPS GCC 10. Use the older
+# definitions as a *build compatibility shim*, not an ABI guarantee.
+gcc_major="$("$CROSS"gcc -dumpversion | cut -d. -f1)"
+if (( gcc_major > 4 )); then
+    hdr="$KERNEL/include/linux/compiler-gcc$gcc_major.h"
+    cp "$KERNEL/include/linux/compiler-gcc4.h" "$hdr"
+    cat >> "$hdr" <<'EOF'
+#ifndef __noclone
+#define __noclone __attribute__((__noclone__))
+#endif
+#ifndef unreachable
+#define unreachable() __builtin_unreachable()
+#endif
+#ifndef __compiletime_warning
+#define __compiletime_warning(message) __attribute__((warning(message)))
+#endif
+#ifndef __compiletime_error
+#define __compiletime_error(message) __attribute__((error(message)))
+#endif
+EOF
+    echo "GCC $gcc_major compatibility shim: $hdr" >> "$OUT/build-info.txt"
+fi
 echo "Using vendor sample mt7510_config, not a verified H298A .config" >> "$OUT/build-info.txt"
 if ! make -C "$KERNEL" ARCH=mips CROSS_COMPILE="$CROSS" silentoldconfig \
     > "$OUT/kernel-config.log" 2>&1; then
