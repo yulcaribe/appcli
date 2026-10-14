@@ -23,10 +23,29 @@ An attempted 5 GHz live replacement may reboot or hang the router.
 - `scripts/check_modules.py` now rejects the known-crashing allocator
   signature rather than reporting a misleading static PASS.
 
-To continue safely, obtain the **exact ZTE H298A Linux 2.6.36 kernel
-headers / configuration, symbol versions and original BSP/toolchain**,
-then compare module struct layouts and function call ABI. No further
-live module swaps should occur until these checks are addressed.
+**Kernel configuration recovered (2026-10-15):** A full file
+`/etc/autokernelconf` was extracted from the user's original H298A
+`ram_flash` backup. It declares Linux 2.6.36 and a 13 June 2022
+build configuration, consistent with the router's `/proc/version`
+(`xialei@localhost.localdomain`, GCC 4.3.4, 13 June 2022).
+The boot command line is only `es=1`; it does not identify a boot slot.
+
+The build accepts the extracted configuration as
+`configs/h298a-zte-20220613.config`. The conversion is only
+replacing vendor `@ CONFIG_... is not set` comment prefixes with
+standard `# CONFIG_... is not set`. If this file is absent, the
+workflow still builds experimental generic candidates **which are
+not safe to load**. Placing the original config in this repo
+does not make the generic upstream kernel headers match ZTE's
+private patches. Exact kernel headers, symbol versions, and
+layout comparisons are still required.
+
+The MT7612E build script also replaces two `kmalloc` allocation sites
+with direct `__kmalloc` calls to avoid the allocator path involved
+in the observed kernel crash. This is a *build-only experiment*;
+do not load the resulting modules until kernel ABI issues are resolved.
+
+**Do NOT rerun the live `rmmod`/`insmod` test yet.**
 
 **Build and hardware compatibility are not yet validated.** Passing compilation does not prove module loadability, correct Wi-Fi calibration or a working wireless uplink.
 
