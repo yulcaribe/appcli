@@ -191,7 +191,7 @@ import subprocess
 import sys
 kernel, cross, logfile = sys.argv[1:]
 cmd = ["make", "-C", kernel, "ARCH=mips", "CROSS_COMPILE=" + cross, "oldconfig"]
-result = subprocess.run(cmd, input="\\n" * 16000,
+result = subprocess.run(cmd, input="\n" * 16000,
                         capture_output=True, text=True, timeout=240)
 pathlib.Path(logfile).write_text(result.stdout + result.stderr)
 new_count = result.stdout.count("(NEW)")
