@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+"""Static checks for H298A APCLI build candidates. Never loads a kernel module."""
+from pathlib import Path
+import subprocess
+import sys
+
+EXPECTED_MAGIC = "2.6.36 SMP mod_unload MIPS32_R2 32BIT MT_SMTC"
+MODULES = ("mt7603eap.ko", "mt7612e_ap.ko")
+
+def inspect(path: Path) -> bool:
+    print(f"\n=== {path.name} ===")
+    if not path.is_file():
+        print("NO OUTPUT: compilation did not produce this driver")
+        return False
+    def cmd(*argv: str) -> str:
+        p = subprocess.run(argv, capture_output=True, text=True, check=False)
+        if p.returncode:
+            print("Error:", " ".join(argv), p.stderr[:300])
+        return p.stdout
+    elf = cmd("readelf", "-h", str(path))
+    modinfo = cmd("readelf", "-p", ".modinfo", str(path))
+    symbols = cmd("readelf", "-Ws", str(path))
+    big = "big endian" in elf
+    mips = "Machine:" in elf and "MIPS" in elf
+    vermagic = "vermagic=" + EXPECTED_MAGIC in modinfo
+    apcli = any(word in symbols.lower() for word in ("apcli", "ap_client"))
+    print("MIPS ELF:", mips)
+    print("Big endian:", big)
+    print("Exact original ZTE vermagic:", vermagic)
+    print("APCLI-related ELF symbols:", apcli)
+    print("Firmware ABI / unresolved symbols / AP+STA / WPA2 handshake: NOT TESTED")
+    print("DO NOT LOAD OR FLASH without matching H298A kernel ABI and recovery testing.")
+    return bool(mips and big and vermagic and apcli)
+
+def main() -> int:
+    root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("build-results")
+    results = {name: inspect(root / name) for name in MODULES}
+    print("\nStatic gate:", "PASS" if all(results.values()) else "FAIL", results)
+    print("Static PASS is not real device compatibility or functional validation.")
+    return 0 if all(results.values()) else 1
+
+if __name__ == "__main__":
+    sys.exit(main())
