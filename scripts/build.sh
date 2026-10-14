@@ -144,6 +144,7 @@ echo "::endgroup::"
 echo "::group::Prepare MT7510-family Linux 2.6.36 kernel configuration"
 EXACT_CONFIG="$WORKDIR/configs/h298a-zte-20220613.config"
 if [[ -f "$EXACT_CONFIG" ]]; then
+    echo "bb15933b81a28d722abb979ce14957069a8bb6a1dfe621bafa9060e23dfcb85d  $EXACT_CONFIG" | sha256sum -c -
     cp "$EXACT_CONFIG" "$KERNEL/.config"
     echo "Kernel configuration: firmware-extracted original ZTE config ($EXACT_CONFIG)" >> "$OUT/build-info.txt"
     sha256sum "$EXACT_CONFIG" >> "$OUT/build-info.txt"
