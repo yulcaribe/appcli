@@ -75,3 +75,34 @@ ZTE OEM kaynakları bulunmazsa, **bu firmware üzerinde yalnızca GUI ekleyerek 
 - #4, #5, #16 .ko yüklemeleri, `rmmod`/`insmod` retry.
 - Sayısal `0x5c -> 0x70` ve adapter boyutuna körlemesine bellek dolgusu ile “uyumluluk” ilanı.
 - ZTE V9 veya başka HW revizyon firmware'ini doğrudan flashlama.
+
+
+## 2026-10-15: Açık kaynak taramasının somut sonuçları
+
+**Birebir H298A V1.0 / V1.0.25 / TTN.21T1_220614 kernel+Wi-Fi GPL kaynak arşivi doğrulanamadı.** Bu bir yokluk ispatı değildir; taranan herkese açık kaynaklarda teyit edilebilir birebir arşiv bulunmadı.
+
+### Gerçekten ulaşılabilen kaynaklar
+
+- **[cjdelisle/EN751221-Linux26](https://github.com/cjdelisle/EN751221-Linux26):** Linux 2.6.36, MT7603 ve MT7612E sürücü ağacı ve APCLI implementasyonu bulunuyor. **Orijinal ZTE `csp/component/wlan/mtk_v2/drivers` ağacı değildir.** Bu SDK ile hazırlanmış aday sürücü H298A'da kernel Oops oluşturdu. Cihazda yüklenmemeli.
+- **[openwrt/mtk-wifi-gpl](https://github.com/openwrt/mtk-wifi-gpl):** Mediatek legacy Wi-Fi GPL sürücü kodu ve MT7612E derleme tanımları mevcut (ör. `os/linux/config.mk.cfg80211`). İncelenen `ap/` dizininde `ap_apcli.c`, `apcli_sync.c` gibi ApCli kaynak dosyaları yok. Dolayısıyla stok ZTE yerine geçecek veya APCLI ile doğrudan derlenebilecek paket değil.
+- **[smx-smx/asuswrt-rt](https://github.com/smx-smx/asuswrt-rt):** Trendchip GPL BSP, `linux` ve `toolchain` dizinleri var; ancak kernel çok daha eski (2.6.22 ailesi), H298A'nın 2022 OEM kaynağı değil.
+- **[Linux wireless/mt76](https://wireless.docs.kernel.org/en/latest/en/users/drivers/mediatek.html):** MT7603E/MT7612E hardware desteği mevcut, fakat modern mac80211 kernel sürücüsü Linux 2.6.36 ZTE sistemine doğrudan takılamaz.
+
+### Resmi ZTE kanalları
+
+- [ZTE GPL/Open Source portalı](https://opensource.ztedevices.com/) cihaz listelenmiyorsa **tech.sp@zte.com.cn** üzerinden iletişim kurulmasını belirtiyor.
+- [ZTE resmi açık kaynak bildirimi](https://support.zte.com.cn/support/news/NewsDetail.aspx?newsId=1037164) **Open.Source@zte.com.cn** iletişim adresini de açıkça gösteriyor. Bu bildirim H298A'ya özgü değil.
+- [ZTE H298A V1.0 EOS bildirimi](https://support.zte.com.cn/support/news/NewsDetail.aspx?newsId=1022304) ürünün desteğinin **30 Ekim 2022** tarihinde bittiğini söylüyor (Hyperoptic/Blue-Intra istisnası). 2026'da kaynak kodu talebi cevapsız kalabilir; GPL kapsamındaki kaynak talebini yine de iletmek mantıklı.
+
+### İstenen kaynakların TAM adı
+
+Üreticiye hem ürünün yazılım versiyonunu hem derlenmiş modülden çıkan kaynak dizinlerini belirt:
+
+- Product: **ZTE ZXHN H298A V1.0**, Hardware **V1.0.25**
+- Firmware: **TTN.21T1_220614** (June 2022), ISP: Türk Telekom
+- SoC MT751020; Linux 2.6.36 SMP MIPS32 Big Endian; build compiler GCC 4.3.4
+- `csp/component/wlan/mtk_v2/drivers/MT7603e`
+- `csp/component/wlan/mtk_v2/drivers/MT7612E`
+- GPL kapsamındaki kernel kaynak ağacı + ZTE patches + ilgili header'lar, build flags, original Makefiles, toolchain tanımı, .config ve gerekliyse Module.symvers. Açık olmayan lisanslı sürücüleri de otomatik GPL varsayma.
+
+**İstenen güvenli sonraki eşik:** Önce bu kaynaklarla ApCli kapalı bir modülün ZTE'nin fonksiyonları/platform hook'larıyla uyumlu derlenebilmesi; sonrasında ApCli etkinleştirme ve yalnızca güvenli donanım test düzeneğinde deneme.
