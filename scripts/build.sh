@@ -119,9 +119,41 @@ PY
 echo "EXPERIMENTAL ABI wrappers: alloc_etherdev_mq -> alloc_etherdev_mqs(rxqs=1), skbmgr_alloc_skb4k -> dev_alloc_skb(4096)" >> "$OUT/build-info.txt"
 echo "::endgroup::"
 
-echo "::group::Prepare MT7510-family Linux 2.6.36 kernel (NOT original ZTE kernel)"
-[[ -f "$KERNEL/mt7510_config" ]] || exit 3
-cp "$KERNEL/mt7510_config" "$KERNEL/.config"
+# Match the stock 5 GHz driver's os_alloc_mem call path to __kmalloc.
+# The generic GCC 10 sample used kmalloc_caches and crashed in
+# kmem_cache_alloc during RtmpOsStatsAlloc on real H298A.
+# This is only a source-level mitigation, NOT an ABI compatibility proof.
+echo "::group::Use stock-like direct kmalloc path in MT7612E"
+python3 - "$D5/os/linux/rt_linux.c" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+s = p.read_text()
+for old, new in [
+    ("*mem = (PUCHAR) kmalloc(size, GFP_ATOMIC);", "*mem = (PUCHAR) __kmalloc(size, GFP_ATOMIC);"),
+    ("*mem = (PUCHAR) kmalloc(size, GFP_KERNEL);", "*mem = (PUCHAR) __kmalloc(size, GFP_KERNEL);"),
+]:
+    if s.count(old) != 1:
+        raise SystemExit(f"Expected one allocation site in {p}: {old}")
+    s = s.replace(old, new)
+p.write_text(s)
+PY
+echo "MT7612E os_alloc_mem uses __kmalloc, matching stock allocation call style" >> "$OUT/build-info.txt"
+echo "::endgroup::"
+
+echo "::group::Prepare MT7510-family Linux 2.6.36 kernel configuration"
+EXACT_CONFIG="$WORKDIR/configs/h298a-zte-20220613.config"
+if [[ -f "$EXACT_CONFIG" ]]; then
+    cp "$EXACT_CONFIG" "$KERNEL/.config"
+    echo "Kernel configuration: firmware-extracted original ZTE config ($EXACT_CONFIG)" >> "$OUT/build-info.txt"
+    sha256sum "$EXACT_CONFIG" >> "$OUT/build-info.txt"
+else
+    # Keeping this generic build path ONLY for comparison; a generic-built
+    # module MUST NOT be considered loadable on the user's H298A.
+    [[ -f "$KERNEL/mt7510_config" ]] || exit 3
+    cp "$KERNEL/mt7510_config" "$KERNEL/.config"
+    echo "UNSAFE FOR LIVE TEST: generic MT7510 sample config, not ZTE firmware config" >> "$OUT/build-info.txt"
+fi
 sed -i 's/^CONFIG_LOCALVERSION_AUTO=y/# CONFIG_LOCALVERSION_AUTO is not set/' "$KERNEL/.config"
 : > "$KERNEL/.scmversion"
 # Linux 2.6.36 expects version-specific compiler-gccN.h. Its vendor tree
@@ -147,7 +179,7 @@ if (( gcc_major > 4 )); then
 EOF
     echo "GCC $gcc_major compatibility shim: $hdr" >> "$OUT/build-info.txt"
 fi
-echo "Using vendor sample mt7510_config, not a verified H298A .config" >> "$OUT/build-info.txt"
+echo "Kernel source headers are still generic vendor BSP, NOT the exact ZTE kernel headers" >> "$OUT/build-info.txt"
 if ! make -C "$KERNEL" ARCH=mips CROSS_COMPILE="$CROSS" silentoldconfig \
     > "$OUT/kernel-config.log" 2>&1; then
     echo "Kernel configuration failed; see build-results/kernel-config.log" >&2
