@@ -181,9 +181,29 @@ EOF
     echo "GCC $gcc_major compatibility shim: $hdr" >> "$OUT/build-info.txt"
 fi
 echo "Kernel source headers are still generic vendor BSP, NOT the exact ZTE kernel headers" >> "$OUT/build-info.txt"
+# The ZTE firmware Kconfig includes custom symbols absent from this
+# different (though related) vendor source tree. Non-interactive
+# silentoldconfig aborts upon NEW questions. Feed default answers, then
+# record all discrepancies for the ABI investigation.
+python3 - "$KERNEL" "$CROSS" "$OUT/kernel-config.log" <<'PY'
+import pathlib
+import subprocess
+import sys
+kernel, cross, logfile = sys.argv[1:]
+cmd = ["make", "-C", kernel, "ARCH=mips", "CROSS_COMPILE=" + cross, "oldconfig"]
+result = subprocess.run(cmd, input="\\n" * 16000,
+                        capture_output=True, text=True, timeout=240)
+pathlib.Path(logfile).write_text(result.stdout + result.stderr)
+new_count = result.stdout.count("(NEW)")
+print(f"Kernel oldconfig returned {result.returncode}; NEW options: {new_count}")
+print("WARNING: ZTE custom config / upstream Kconfig mismatch; no runtime ABI guarantee")
+if result.returncode:
+    print((result.stdout + result.stderr)[-4500:])
+    sys.exit(4)
+PY
 if ! make -C "$KERNEL" ARCH=mips CROSS_COMPILE="$CROSS" silentoldconfig \
-    > "$OUT/kernel-config.log" 2>&1; then
-    echo "Kernel configuration failed; see build-results/kernel-config.log" >&2
+    >> "$OUT/kernel-config.log" 2>&1; then
+    echo "Kernel silentoldconfig failed after filling defaults" >&2
     tail -50 "$OUT/kernel-config.log" >&2
     exit 4
 fi
