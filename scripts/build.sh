@@ -84,6 +84,41 @@ print("Guarded optional 802.1X reference in MT7612 APCLI")
 PY
 echo "::endgroup::"
 
+# Link-time shims for two functions absent from the H298A kernel.
+# alloc_etherdev_mq has a different symbol name than ZTE's alloc_etherdev_mqs.
+# skbmgr_alloc_skb4k is a vendor RX allocation fast-path; use kernel dev_alloc_skb.
+# Both are unverified semantic substitutions. NEVER install on production hardware
+# without verifying the precise signatures / DMA and skb requirements.
+echo "::group::Add experimental MT7612E ABI compatibility wrappers"
+cat > "$D5/os/linux/apcli_compat.c" <<'EOF'
+#include <linux/netdevice.h>
+#include <linux/etherdevice.h>
+#include <linux/skbuff.h>
+
+struct net_device *alloc_etherdev_mq(int sizeof_priv, unsigned int txqs)
+{
+    return alloc_etherdev_mqs(sizeof_priv, txqs, 1);
+}
+
+struct sk_buff *skbmgr_alloc_skb4k(void)
+{
+    return dev_alloc_skb(4096);
+}
+EOF
+python3 - "$D5/os/linux/Makefile.6" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+s = p.read_text()
+needle = "obj-m := $(MOD_NAME).o"
+if s.count(needle) != 1:
+    raise SystemExit("Unexpected Wi-Fi makefile layout")
+s = s.replace(needle, "obj_cmm += ../../os/linux/apcli_compat.o\n" + needle)
+p.write_text(s)
+PY
+echo "EXPERIMENTAL ABI wrappers: alloc_etherdev_mq -> alloc_etherdev_mqs(rxqs=1), skbmgr_alloc_skb4k -> dev_alloc_skb(4096)" >> "$OUT/build-info.txt"
+echo "::endgroup::"
+
 echo "::group::Prepare MT7510-family Linux 2.6.36 kernel (NOT original ZTE kernel)"
 [[ -f "$KERNEL/mt7510_config" ]] || exit 3
 cp "$KERNEL/mt7510_config" "$KERNEL/.config"
