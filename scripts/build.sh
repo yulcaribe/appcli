@@ -59,6 +59,31 @@ PY
 done
 echo "::endgroup::"
 
+# Vendor MT7612 APCLI branch accesses wifi_dev.IEEE8021X unconditionally,
+# although that member is compiled only with DOT1X_SUPPORT. Keep WPA2-PSK
+# intact and guard the optional 802.1X branch rather than enabling EAP code.
+echo "::group::Fix vendor MT7612E APCLI conditional compilation"
+cp "$D5/ap/ap_data.c" "$OUT/mt7612-ap_data.c.original"
+python3 - "$D5/ap/ap_data.c" <<'PY'
+from pathlib import Path
+import re, sys
+p = Path(sys.argv[1])
+s = p.read_text()
+pattern = re.compile(r"(?m)^([ \t]*)\(wdev->AuthMode == Ndis802_11AuthModeWPA2PSK\) \|\|[ \t]*\n[ \t]*\(wdev->IEEE8021X == TRUE\)")
+def repl(m):
+    indent = m.group(1)
+    return (indent + "(wdev->AuthMode == Ndis802_11AuthModeWPA2PSK)\n"
+            + "#ifdef DOT1X_SUPPORT\n"
+            + indent + "|| (wdev->IEEE8021X == TRUE)\n"
+            + "#endif")
+s, count = pattern.subn(repl, s)
+if count != 1:
+    raise SystemExit(f"Expected one MT7612 APCLI IEEE8021X conditional, found {count}")
+p.write_text(s)
+print("Guarded optional 802.1X reference in MT7612 APCLI")
+PY
+echo "::endgroup::"
+
 echo "::group::Prepare MT7510-family Linux 2.6.36 kernel (NOT original ZTE kernel)"
 [[ -f "$KERNEL/mt7510_config" ]] || exit 3
 cp "$KERNEL/mt7510_config" "$KERNEL/.config"
