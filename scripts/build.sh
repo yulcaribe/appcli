@@ -49,7 +49,7 @@ for driver in "$D24" "$D5"; do
 import pathlib, re, sys
 path = pathlib.Path(sys.argv[1])
 s = path.read_text()
-s, changed = re.subn(r"(?m)^HAS_APCLI=n\s*$", "HAS_APCLI=y", s, count=1)
+s, changed = re.subn(r"(?m)^HAS_APCLI=n[ \t]*$", "HAS_APCLI=y", s, count=1)
 if changed != 1:
     raise SystemExit(f"APCLI config not found exactly once: {path}")
 path.write_text(s)
