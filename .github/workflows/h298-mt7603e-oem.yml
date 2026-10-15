@@ -1,0 +1,40 @@
+name: H298 MT7603E PCIe APCLI source port
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev/h298-mt7603e-oem-abi-port]
+    paths:
+      - 'experiments/h298-mt7603e-oem/**'
+      - '.github/workflows/h298-mt7603e-oem.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  source-port:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get pinned upstream 2014 vendor source
+        run: |
+          git clone https://github.com/mand3v/MT7603U.git "$RUNNER_TEMP/mt7603-vendor"
+          git -C "$RUNNER_TEMP/mt7603-vendor" checkout --detach a99bc13905d59df14cb8708a79387907e26357ee
+      - name: Regression tests
+        run: python3 -m unittest discover -s experiments/h298-mt7603e-oem/tests -v
+      - name: Generate experimental H298 MT7603E APCLI driver source
+        run: |
+          python3 experiments/h298-mt7603e-oem/port.py \
+            --donor "$RUNNER_TEMP/mt7603-vendor" --output "$RUNNER_TEMP/h298-mt7603e"
+          test -f "$RUNNER_TEMP/h298-mt7603e/os/linux/h298_oem_abi_guard.h"
+          grep -q 'HAS_APCLI=y' "$RUNNER_TEMP/h298-mt7603e/os/linux/config.mk"
+          echo 'Source generated. Exact ZTE kernel headers still required for OEM-compatible compilation.'
+      - name: Package source for offline OEM kernel build
+        run: |
+          tar -C "$RUNNER_TEMP" -czf mt7603e-h298-apcli-source.tar.gz h298-mt7603e
+      - uses: actions/upload-artifact@v4
+        with:
+          name: h298-mt7603e-apcli-source
+          path: mt7603e-h298-apcli-source.tar.gz
+          retention-days: 30
