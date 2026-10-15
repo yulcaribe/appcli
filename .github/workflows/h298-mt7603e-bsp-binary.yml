@@ -9,6 +9,7 @@ on:
       - 'experiments/h298-mt7603e-oem/patch_netdev_abi_v3.py'
       - 'experiments/h298-mt7603e-oem/patch_ra0_open_v5.py'
       - 'experiments/h298-mt7603e-oem/patch_rx_skb_v6.py'
+      - 'experiments/h298-mt7603e-oem/patch_profile_path_v7.py'
       - '.github/workflows/h298-mt7603e-bsp-binary.yml'
 
 permissions:
