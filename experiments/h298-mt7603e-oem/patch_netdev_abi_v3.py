@@ -45,6 +45,25 @@ static void h298_zte_stop_queue(struct net_device *dev)
 
 """
     s=exactly_once(s,anchor,extra+anchor)
+    # OEM netdev_priv(): original ZTE 2.4GHz module stores driver-private
+    # sys_handle at netdev+0x3c0 and priv_flags at +0x3c8. GCC10 generic
+    # headers currently emit +0x380 and +0x388, corrupting the wrong memory.
+    include='#include <linux/rtnetlink.h>'
+    s=exactly_once(s,include,include+'''
+/* Reconstructed from stock MT7603E RtmpOsSetNetDevPriv machine code. */
+static inline void *h298_zte_netdev_priv(struct net_device *dev)
+{
+    return (void *)((char *)dev + 0x3c0);
+}
+''')
+    privcall='netdev_priv((struct net_device *)'
+    number=s.count(privcall)
+    if number != 8:
+        raise SystemExit('Unexpected netdev_priv() use count: '+str(number))
+    s=s.replace(privcall,'h298_zte_netdev_priv((struct net_device *)')
+    s=exactly_once(s,'NdisMoveMemory(net_dev->dev_addr, pMacAddr, 6);',
+        'NdisMoveMemory(*(unsigned char **)((char *)net_dev + 0x1d0), pMacAddr, 6);')
+
     expected=4
     actual=s.count("pNetDev->netdev_ops")
     if actual!=expected:
