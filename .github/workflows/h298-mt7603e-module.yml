@@ -1,0 +1,76 @@
+name: H298 MT7603E APCLI actual module build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev/h298-mt7603e-oem-abi-port]
+    paths:
+      - 'experiments/h298-mt7603e-oem/**'
+      - '.github/workflows/h298-mt7603e-module.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compile-module:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install MIPS big endian toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            git build-essential make python3 gcc-mips-linux-gnu \
+            binutils-mips-linux-gnu bison flex libncurses-dev \
+            bc libssl-dev file ca-certificates
+      - name: Prepare matching chipset Linux 2.6.36 build tree
+        run: |
+          mkdir -p h298-compile
+          set +e
+          bash scripts/build.sh > h298-compile/bsp-reference.log 2>&1
+          status=$?
+          set -e
+          echo "REFERENCE_BSP_BUILD_EXIT=$status" | tee h298-compile/reference-status.txt
+          test -f vendor-src/tclinux_phoenix/linux-2.6.36/include/generated/autoconf.h \
+            -o -f vendor-src/tclinux_phoenix/linux-2.6.36/include/linux/autoconf.h
+      - name: Download exact pinned 2014 MT7603 donor tree
+        run: |
+          git clone https://github.com/mand3v/MT7603U.git "$RUNNER_TEMP/mt7603-donor"
+          git -C "$RUNNER_TEMP/mt7603-donor" checkout --detach a99bc13905d59df14cb8708a79387907e26357ee
+      - name: Produce actual experimental 2.4GHz MIPS module
+        run: |
+          set -o pipefail
+          python3 experiments/h298-mt7603e-oem/port.py \
+            --donor "$RUNNER_TEMP/mt7603-donor" \
+            --output "$RUNNER_TEMP/h298-mt7603e"
+          set +e
+          make -C "$RUNNER_TEMP/h298-mt7603e" \
+            TARGET=LINUX PLATFORM=BB_SOC WIFI_MODE=AP CHIPSET=mt7603e \
+            KERNEL_DIR="$GITHUB_WORKSPACE/vendor-src/tclinux_phoenix/linux-2.6.36" \
+            ARCH=mips CROSS_COMPILE=mips-linux-gnu- \
+            all > h298-compile/mt7603e-build.log 2>&1
+          status=$?
+          set -e
+          echo "MT7603E_BUILD_EXIT=$status" | tee h298-compile/build-status.txt
+          find "$RUNNER_TEMP/h298-mt7603e" -name '*.ko' -type f -exec cp -v {} h298-compile/ \; 
+          if compgen -G 'h298-compile/*.ko' > /dev/null; then
+            file h298-compile/*.ko | tee h298-compile/elf-type.txt
+            readelf -p .modinfo h298-compile/*.ko > h298-compile/modinfo.txt || true
+            sha256sum h298-compile/*.ko > h298-compile/SHA256SUMS
+          fi
+          if [[ "$status" != 0 ]]; then
+            tail -n 100 h298-compile/mt7603e-build.log
+            exit "$status"
+          fi
+      - name: Publish module binaries and logs, even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: h298-mt7603e-actual-module-or-failure-logs
+          path: h298-compile/
+          if-no-files-found: warn
+          retention-days: 30
+
+# The kernel headers used here are the EN751221 donor BSP, not OEM ZTE.
+# This task tests whether a REAL .ko builds; it does not certify OEM ABI.
