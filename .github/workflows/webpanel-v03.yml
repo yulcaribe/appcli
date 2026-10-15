@@ -1,0 +1,63 @@
+name: H298A v0.3 web panel package
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'webpanel/v0.3/**'
+      - '.github/workflows/webpanel-v03.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Verify original Lua/LP/shell and publish ZIP
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+      - name: Install lightweight syntax verification
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y lua5.1 zip
+      - name: Verify source checksums and shell/Lua syntax
+        run: |
+          cd webpanel/v0.3
+          sha256sum -c SHA256SUMS.txt
+          sh -n yc_repeater.sh
+          for f in haikui_dmenu.lua Internet_STA_t.lp Internet_STA_Switch_lua.lua Internet_STA_WLANProfile_lua.lua; do
+            luac5.1 -p "$f"
+          done
+      - name: Verify embedded JavaScript syntax
+        shell: bash
+        run: |
+          node - <<'JS'
+          const fs = require('fs');
+          const vm = require('vm');
+          const source = fs.readFileSync('webpanel/v0.3/Internet_STA_t.lp', 'utf8');
+          const snippets = [...source.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)].map(x => x[1]);
+          if (snippets.length !== 1) throw Error('Expected exactly one inline script block');
+          for (const snippet of snippets) new vm.Script(snippet);
+          console.log('Embedded JavaScript syntax OK');
+          JS
+      - name: Package original source files (NOT firmware)
+        run: |
+          mkdir -p out
+          cd webpanel/v0.3
+          zip -9 -j ../../out/YulCaribe_H298A_Repeater_v0.3_WebPanel.zip \
+            haikui_dmenu.lua Internet_STA_t.lp \
+            Internet_STA_Switch_lua.lua Internet_STA_WLANProfile_lua.lua \
+            yc_repeater.sh SHA256SUMS.txt KURULUM_V03.txt README.md
+          cd ../..
+          unzip -t out/YulCaribe_H298A_Repeater_v0.3_WebPanel.zip
+          sha256sum out/YulCaribe_H298A_Repeater_v0.3_WebPanel.zip
+      - name: Upload verified web panel ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: YulCaribe_H298A_Repeater_v0.3_WebPanel
+          path: out/YulCaribe_H298A_Repeater_v0.3_WebPanel.zip
+          if-no-files-found: error
+          retention-days: 30
