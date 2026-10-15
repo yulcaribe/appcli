@@ -71,6 +71,25 @@ for filename in sys.argv[1:]:
     path.write_text(source.replace(before, after))
     print('Patched known CLIENT_WDS syntax in', path)
 PY_CLIENT
+python3 - "$D24/common/cmm_data.c" "$D5/common/cmm_data.c" <<'PY_CLIENT_BSSID'
+from pathlib import Path
+import sys
+old_fields = (
+    'pAd->ApCfg.MBSSID[pMacEntry->func_tb_idx].Bssid',
+    'pAd->ApCfg.MBSSID[pMacEntry->apidx].Bssid',
+)
+new_fields = (
+    'pAd->ApCfg.MBSSID[pMacEntry->func_tb_idx].wdev.bssid',
+    'pAd->ApCfg.MBSSID[pMacEntry->apidx].wdev.bssid',
+)
+for filename, before, after in zip(sys.argv[1:], old_fields, new_fields):
+    path = Path(filename)
+    source = path.read_text()
+    if source.count(before) != 1:
+        raise SystemExit(f'Expected exactly one old CLIENT_WDS Bssid field in {path}')
+    path.write_text(source.replace(before, after))
+    print('Adjusted CLIENT_WDS to wifi_dev.bssid in', path)
+PY_CLIENT_BSSID
 """
     anchor_client = '# Vendor MT7612 APCLI branch'
     assert source.count(anchor_client) == 1
