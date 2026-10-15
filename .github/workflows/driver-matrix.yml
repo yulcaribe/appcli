@@ -1,0 +1,48 @@
+name: H298A five experimental WiFi drivers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'experiments/driver-matrix/**'
+      - '.github/workflows/driver-matrix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  driver-pair:
+    name: ${{ matrix.profile }} - MT7603E and MT7612E
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        profile:
+          - zte-stocklike
+          - apcli-minimal
+          - apcli-wds
+          - apcli-client-wds
+          - apcli-mac-repeater
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cross-compiler for MIPS32 big-endian
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            git build-essential make python3 gcc-mips-linux-gnu \
+            binutils-mips-linux-gnu bison flex libncurses-dev \
+            bc libssl-dev file ca-certificates
+      - name: Compile in isolated profile folder (never touch router)
+        env:
+          H298A_PROFILE: ${{ matrix.profile }}
+        run: bash experiments/driver-matrix/build_variant.sh
+      - name: Store candidate pair and full ABI audit, including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: h298a-${{ matrix.profile }}-${{ github.run_number }}
+          path: experiments/driver-matrix/out/${{ matrix.profile }}/
+          if-no-files-found: warn
+          retention-days: 30
