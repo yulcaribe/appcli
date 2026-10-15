@@ -54,6 +54,27 @@ echo "::endgroup::"
 
 """
 source = source[:start] + replacement + source[end:]
+if name == 'apcli-client-wds':
+    # The pinned upstream CLIENT_WDS code path has one unmatched '(' in ap_data.c.
+    # Correct the two matching C source sites in the TEMPORARY vendor checkout.
+    # No production or stock ZTE module is changed.
+    fix = """python3 - "$D24/ap/ap_data.c" "$D5/ap/ap_data.c" <<'PY_CLIENT'
+from pathlib import Path
+import sys
+before = 'if ((pEntry && (pEntry->Sst == SST_ASSOC)) {'
+after = 'if (pEntry && (pEntry->Sst == SST_ASSOC)) {'
+for filename in sys.argv[1:]:
+    path = Path(filename)
+    source = path.read_text()
+    if source.count(before) != 1:
+        raise SystemExit(f'Expected exactly one CLIENT_WDS syntax bug in {path}')
+    path.write_text(source.replace(before, after))
+    print('Patched known CLIENT_WDS syntax in', path)
+PY_CLIENT
+"""
+    anchor_client = '# Vendor MT7612 APCLI branch'
+    assert source.count(anchor_client) == 1
+    source = source.replace(anchor_client, fix + '\n' + anchor_client, 1)
 # Keep compilation success distinct from ABI approval. Gate failure is recorded,
 # never silently promoted into a 'safe to load' claim.
 anchor = 'python3 scripts/check_modules.py "$OUT" | tee "$OUT/verification.txt" || FAILED=1'
