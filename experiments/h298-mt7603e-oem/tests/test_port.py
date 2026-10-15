@@ -13,7 +13,9 @@ class PortTests(unittest.TestCase):
         self.donor = self.root / "donor"
         (self.donor / "ap").mkdir(parents=True)
         (self.donor / "os/linux").mkdir(parents=True)
-        (self.donor / "ap/ap_apcli.c").write_text("APCLI")
+        (self.donor / "include").mkdir()
+        (self.donor / "ap/apcli_link_cover.c").write_text("APCLI")
+        (self.donor / "include/ap_apcli.h").write_text("APCLI declarations")
         (self.donor / "Makefile").write_text("RT28xx_MODE  = STA\nCHIPSET = mt7603u\n")
         (self.donor / "os/linux/config.mk").write_text(
             "HAS_APCLI=n\n"
