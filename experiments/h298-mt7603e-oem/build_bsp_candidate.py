@@ -89,6 +89,8 @@ PY_BBU
 echo "pAd_save: removed optional tc3162/sta_info path (2.4GHz only)" >> "$OUT/build-info.txt"
 python3 experiments/h298-mt7603e-oem/patch_netdev_abi_v3.py "$D24/os/linux/rt_linux.c"
 python3 experiments/h298-mt7603e-oem/patch_ra0_open_v5.py "$D24/os/linux/rt_main_dev.c"
+python3 experiments/h298-mt7603e-oem/patch_rx_skb_v6.py "$D24/os/linux/rt_rbus_pci_util.c"
+echo "V6 RX skb OEM 0xb8/0xc4 and __alloc_skb DMA path" >> "$OUT/build-info.txt"
 echo "V3 net_device OEM field offset adaptation in rt_linux.c only" >> "$OUT/build-info.txt"
 echo "::endgroup::"
 echo "2.4GHz allocation and symbol experimental patch applied; full OEM ABI still unknown." >> "$OUT/build-info.txt"
