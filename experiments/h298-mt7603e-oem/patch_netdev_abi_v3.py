@@ -74,6 +74,24 @@ static inline void *h298_zte_netdev_priv(struct net_device *dev)
     s=exactly_once(s,"NdisMoveMemory(pNetDev->dev_addr, &pDevOpHook->devAddr[0],",
                       "NdisMoveMemory(H298_ZTE_DEV_ADDR(pNetDev), &pDevOpHook->devAddr[0],")
     s=exactly_once(s,"netif_stop_queue(pNetDev);","h298_zte_stop_queue(pNetDev);")
+    # V4: OEM ZTE's net_device_ops is 0x88 bytes, while our generic
+    # BSP header produced 0x6c. Confirmed in stock RtmpOSNetDevOpsAlloc.
+    # Also the OEM callback offsets for ioctl/get_stats/validate_addr
+    # differ from generic BSP by 4 bytes.
+    opssize='sizeof (struct net_device_ops)'
+    if s.count(opssize) != 2:
+        raise SystemExit('Unexpected netdev ops sizeof count: '+str(s.count(opssize)))
+    s=s.replace(opssize,'0x88')
+    s=exactly_once(s,
+      'pNetDevOps->ndo_do_ioctl = pDevOpHook->ioctl;',
+      '*(void **)((char *)pNetDevOps + 0x28) = (void *)pDevOpHook->ioctl;')
+    s=exactly_once(s,
+      'pNetDevOps->ndo_get_stats = pDevOpHook->get_stats;',
+      '*(void **)((char *)pNetDevOps + 0x40) = (void *)pDevOpHook->get_stats;')
+    s=exactly_once(s,
+      'pNetDevOps->ndo_validate_addr = NULL;',
+      '*(void **)((char *)pNetDevOps + 0x24) = NULL;')
+
     p.write_text(s,encoding="latin-1")
     print("Patched H298 netdev_ops(0x134), ethtool(0x138), dev_addr(0x1d0), _tx(0x220), state(+0x50):",p)
 
