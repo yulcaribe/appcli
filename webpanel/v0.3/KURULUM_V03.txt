@@ -1,0 +1,70 @@
+YulCaribe H298A V1.0 | WiFi Repeater v0.3 - DENEYSEL RAM PAKETI
+=============================================================
+Donanim / yazilim: ZXHN H298A V1.0, TTN.21T1_220614
+Bu paket GUVENLI KALICI FIRMWARE GUNCELLEMESI DEGILDIR.
+
+ICERIK
+- haikui_dmenu.lua                 (v0.2, calistigi dogrulanan menu)
+- Internet_STA_t.lp               (v0.3 yeni tek-sayfa arayuz)
+- Internet_STA_Switch_lua.lua     (v0.3 backend, HATA 197 yolunu kaldirir)
+- Internet_STA_WLANProfile_lua.lua (v0.2 read-only probe)
+- yc_repeater.sh                  (v0.3 RAM kontrol yardimcisi)
+- SHA256SUMS.txt
+
+ONEMLI SINIRLAR
+- 2.4/5 GHz tarama: MediaTek SiteSurvey ioctl ile gercek ag tarama denemesi.
+- 2.4/5 GHz yayin: iwpriv ile gecici SSID/WPA2-PSK ve AP ac/kapat.
+- STA baglanma: APCLI surucu ioctl denemesi, calisacagi GARANTI DEGIL.
+  H298A'da apcli netdev etkin gorunmedi. Surucu desteklemiyorsa panel
+  APCLI_UNSUPPORTED_BY_DRIVER veya STA_NETDEV_NOT_PRESENT hatasi verir.
+- LAN1-LAN4 br0 uyesi, ama STA internete baglanmadan ve L2 bridge/NAT
+  dogrulanmadan Ethernet Internet paylasimi saglanmis sayilmaz.
+- Repeater modu 7 denemesi ZTE ag yapisini yeniden baslatabilir.
+- Normal modem menulerini backend genelinde kilitlemiyoruz (henuez yok).
+- Shell yardimcisi dogrudan MTD/flasha YAZMAZ. Ancak ZTE 'setmode'
+  servisinin kendi yapilandirmasinda degisiklik yapabilmesi mumkun.
+- Modemi yeniden baslatmak RAM arayuzunu ve runtime WiFi degisikliklerini siler.
+- TFTP dizininde onceki httpd_yc, README.txt, KONTROL.txt kalabilir.
+
+KURULUM - YENIDEN BASLATMADAN, MEVCUT V0.2 MOUNT'LAR AKTIFSE
+1) ZIP icindeki dosyalari PC'de su klasore cikar:
+   C:\Users\isa\Desktop\modem\httpd_yc
+   Tftpd64'te current directory olarak bu klasoru sec (PC IP 192.168.1.33).
+2) Modemin gercek root (#) shell'ine gir.
+3) ASAGIDAKILERI TEK TEK GONDER (eski paket kuruluysa ilk 2 zorunlu):
+   tftp -g -r Internet_STA_t.lp -l /tmp/httpd/common_page/Internet_STA_t.lp 192.168.1.33
+   tftp -g -r Internet_STA_Switch_lua.lua -l /tmp/httpd/common_page/Internet_STA_Switch_lua.lua 192.168.1.33
+   tftp -g -r yc_repeater.sh -l /tmp/yc_repeater.sh 192.168.1.33
+   chmod 700 /tmp/yc_repeater.sh
+4) Kontrol:
+   hexdump -C -n 16 /tmp/httpd/common_page/Internet_STA_t.lp
+   ls -l /tmp/yc_repeater.sh
+   mount | grep /home/httpd
+5) Tarayici 192.168.1.1 -> WiFi Repeater; Ctrl+F5 veya menu degistir.
+   Ilk once 2.4/5 GHz TARA butonlarini dene. Mode 7'yi hemen acma.
+
+TEMIZ RAM KURULUM - MODEM YENIDEN BASLADIYSA
+1) cp -R /home/httpd /tmp/httpd
+2) Tum 4 Lua/LP dosyasini TFTP ile su konumlara indir:
+   haikui_dmenu.lua -> /tmp/httpd/haikui_dmenu.lua
+   Internet_STA_t.lp -> /tmp/httpd/common_page/Internet_STA_t.lp
+   Internet_STA_Switch_lua.lua -> /tmp/httpd/common_page/Internet_STA_Switch_lua.lua
+   Internet_STA_WLANProfile_lua.lua -> /tmp/httpd/common_page/Internet_STA_WLANProfile_lua.lua
+3) yc_repeater.sh -> /tmp/yc_repeater.sh, chmod 700 /tmp/yc_repeater.sh
+4) mount -o bind /tmp/httpd/haikui_dmenu.lua /home/httpd/haikui_dmenu.lua
+5) mount -o bind /tmp/httpd/common_page /home/httpd/common_page
+
+GERI ALMA
+   umount /home/httpd/common_page
+   umount /home/httpd/haikui_dmenu.lua
+   sendcmd cspd..multiapd_mgr setmode 1     (SADECE mode 7'de kaldiysa)
+Yalnizca web mount'larini kaldirmak, ag modunu geri almaz.
+
+TEST SIRASI
+1. Tarama -> 2.4 GHz, sonra 5 GHz
+2. Durum -> ifconfig + STA arayuzu
+3. STA baglanma (surucu destekliyorsa) -> uygun WPA2 kablosuz aga baglan
+4. SSID / sifre yayin denemesi (Ethernet baglantisiyla)
+5. Mode 7 sadece geri alma ve LAN erisimi kontrol edilerek
+
+TUM ISLEMLER DENEYSELDIR. Ana ag baglantisi kopabilir.
