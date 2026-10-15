@@ -46,8 +46,8 @@ def port(src, target):
     makefile = target / "Makefile"
     config = target / "os/linux/config.mk"
     rt_linux = target / "os/linux/rt_linux.c"
-    if not (target / "ap/ap_apcli.c").is_file():
-        raise ValueError("Donor does not include APCLI C source")
+    if not (target / "ap/apcli_link_cover.c").is_file() or not (target / "include/ap_apcli.h").is_file():
+        raise ValueError("Donor does not include required MT7603 APCLI files")
 
     m = makefile.read_text(encoding="latin-1")
     m = replace_one(m, "RT28xx_MODE  = STA", "RT28xx_MODE  = AP", makefile)
