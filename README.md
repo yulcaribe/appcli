@@ -1,3 +1,17 @@
+# YulCaribe H298A WiFi Repeater / APCLI
+
+## Son çalışan web paneli: v0.3
+
+**[v0.3 orijinal web paneli kaynakları](webpanel/v0.3/README.md)** | **[Yeni GPT için eksiksiz teknik devir raporu](docs/DEVIR_YENI_GPT_H298A_2026-10-15.md)** | **[Wi-Fi panel paketleme Actions](../../actions/workflows/webpanel-v03.yml)**
+
+- ZTE Haikui menüsü, Lua/LP yönetim paneli, **gerçek 2.4 ve 5 GHz SiteSurvey Wi-Fi taraması** ve debug kayıtları mevcut.
+- **STA uplink / universal repeater ÇALIŞMIYOR:** stok MediaTek sürücüler ApCli ioctl reddediyor, `apcli0` arayüzü oluşmuyor. Çalışıyor izlenimi veren butonlar deneysel ve güvenli olmayabilir.
+- Web paneli **Lua/LP/shell kaynak kodudur**, ayrı bir firmware bin dosyası veya derlenmiş kernel modülü değildir. GitHub Actions bu dosyaları doğrular ve ZIP paketler.
+- Eski deneysel 5 GHz `.ko`, modemde gerçek kernel Oops oluşturdu. Tekrar yüklenmemeli.
+- Her iki çalışma da `yulcaribe/vpnengine` üretim projesinden bağımsız.
+
+---
+
 # H298A APCLI driver build
 
 This repository builds **experimental AP-Client-enabled MediaTek MT7603E / MT7612E driver candidates** for ZTE ZXHN H298A V1.0.25 (MT7510 family, MIPS32 big-endian, Linux 2.6.36).
