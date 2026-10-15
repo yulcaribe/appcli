@@ -71,11 +71,11 @@ s = p.read_text()
 # pAd_save storage (conditionally compiled in bb_soc.c).
 # Exclude ONLY this optional proc diagnostic from 2.4 GHz driver build.
 sites = [
-    '#ifdef BB_SOC\nextern RTMP_ADAPTER *pAd_save;',
-    '#ifdef BB_SOC\n        struct proc_dir_entry *wifi_proc;',
-    '#ifdef BB_SOC\n        wifi_proc=create_proc_entry("tc3162/sta_info", 0, NULL);',
-    '#ifdef BB_SOC\n    remove_proc_entry("tc3162/sta_info",0);',
-    '#ifdef BB_SOC\nunsigned int BBUWlanStaInfo(void)'
+    '#ifdef BB_SOC\\nextern RTMP_ADAPTER *pAd_save;',
+    '#ifdef BB_SOC\\n        struct proc_dir_entry *wifi_proc;',
+    '#ifdef BB_SOC\\n        wifi_proc=create_proc_entry("tc3162/sta_info", 0, NULL);',
+    '#ifdef BB_SOC\\n    remove_proc_entry("tc3162/sta_info",0);',
+    '#ifdef BB_SOC\\nunsigned int BBUWlanStaInfo(void)'
 ]
 for old in sites:
     if s.count(old) != 1:
