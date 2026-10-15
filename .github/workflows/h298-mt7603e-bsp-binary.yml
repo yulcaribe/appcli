@@ -1,0 +1,46 @@
+name: H298 MT7603E BSP APCLI binary experiment
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev/h298-mt7603e-oem-abi-port]
+    paths:
+      - 'experiments/h298-mt7603e-oem/build_bsp_candidate.py'
+      - '.github/workflows/h298-mt7603e-bsp-binary.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cross compiler
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            git build-essential make python3 gcc-mips-linux-gnu \
+            binutils-mips-linux-gnu bison flex libncurses-dev \
+            bc libssl-dev file ca-certificates
+      - name: Generate modified BSP build script
+        run: python3 experiments/h298-mt7603e-oem/build_bsp_candidate.py
+      - name: Compile actual MIPS MT7603E APCLI candidate
+        run: |
+          set +e
+          bash experiments/h298-mt7603e-oem/mtk-v2-bsp-build.sh
+          status=$?
+          set -e
+          echo "SOURCE_AND_ABI_GATE_EXIT=$status"
+          test -s experiments/h298-mt7603e-oem/out/mtk-v2-bsp/mt7603eap.ko
+          file experiments/h298-mt7603e-oem/out/mtk-v2-bsp/mt7603eap.ko
+          echo 'Compiled binary exists; the full ZTE OEM kernel ABI has NOT been proven.'
+      - name: Upload module and ABI checks
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: h298-mt7603e-bsp-apcli-experimental-ko
+          path: experiments/h298-mt7603e-oem/out/mtk-v2-bsp/
+          if-no-files-found: warn
+          retention-days: 30
