@@ -12,6 +12,7 @@ on:
       - 'experiments/h298-mt7603e-oem/patch_profile_path_v7.py'
       - 'experiments/h298-mt7603e-oem/patch_oem_eeprom_path.py'
       - 'experiments/h298-mt7603e-oem/oem_abi_gate.py'
+      - 'experiments/h298-mt7603e-oem/source_abi_inventory.py'
       - '.github/workflows/h298-mt7603e-bsp-binary.yml'
 
 permissions:
@@ -51,6 +52,11 @@ jobs:
           grep '"status": "BLOCKED"' experiments/h298-mt7603e-oem/out/mtk-v2-bsp/OEM_ABI_GATE.json \
             && echo 'WARNING: ABI MISMATCH: COMPILED FOR RESEARCH ONLY; NOT SAFE TO LIVE TEST.' \
             || echo 'STATIC TARGET FIELDS MATCHED; still not a verified driver.'
+      - name: Inventory entire patched MT7603E source tree
+        run: |
+          python3 experiments/h298-mt7603e-oem/source_abi_inventory.py \
+            vendor-src/tclinux_phoenix/modules/private/wifi/MT7603 \
+            --output experiments/h298-mt7603e-oem/out/mtk-v2-bsp/OEM_SOURCE_ABI_INVENTORY.json
       - name: Upload module and ABI checks
         if: always()
         uses: actions/upload-artifact@v4
