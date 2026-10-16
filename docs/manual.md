@@ -1,7 +1,109 @@
+# MANUEL: H298 Repeater çalışmasının tam tarihçesi
+
+**Güncelleme: 16 Ekim 2026.** Bu belge, projenin hedefini ve kullanıcının modeminde gerçekten uygulanan yöntemleri kaydeder. Başarılı, yalnızca derlenmiş, başarısız ve öneri aşamasındaki işlemler ayrı tutulur.
+
+## 1. Başlangıç hedefi
+
+ZTE ZXHN H298/H298A (modem kabuğu 'ZXHN H298A' başlığı kullanır) üzerindeki **2.4 GHz MT7603E** ve ileride **5 GHz MT7612E** donanımını WPA2 Wi-Fi'ye istemci olarak bağlayıp LAN Ethernet ve istenirse yerel Wi-Fi'den bağlantı paylaşan bir repeater / Wi-Fi-to-Ethernet cihazına dönüştürmek. Kullanıcı uygulama yazmak yerine sürücünün gerçek radyo yeteneğini öncelikli görüyor. Mevcut modem web arayüzü kaybolmadan genişletilmeli.
+
+## 2. Donanım, gerçek erişim ve araçlar
+
+| Bilgi | Cihazda görülen |
+|---|---|
+| Marka/model | ZTE ZXHN H298A kabuk banner'ı; cihaz H298 olarak da anıldı |
+| Firmware | TTN.21T1_220614, HW V1.0.25 |
+| Kernel | Linux 2.6.36; MIPS 34Kc MIPS32r2 **big-endian**, SMP MT_SMTC; GCC 4.3.4; 13 Haziran 2022 |
+| Rootfs | SquashFS salt-okunur, `/tmp` geçici (rebootta sıfırlanır) |
+| Wi-Fi sürücüleri | Orijinal `/lib/modules/mt7603eap.ko` (2.4 GHz) ve `mt7612e_ap.ko` (5 GHz) |
+| PC modem/LAN | Windows 10, modem `192.168.1.1`, Tftpd64 sunucusu önceki testlerde `192.168.1.33` |
+| PC klasörleri | `C:\Users\isa\Desktop\modem\httpd_yc` (web), `C:\Users\isa\Desktop\exp1` (V1–V7 testleri) |
+| BusyBox | v1.17.2; `ls -h` desteklemiyor, `find` komutu yok |
+
+**Gerçek root kabuğu erişimi:**
+
+Windows CMD:
+```bat
+ssh -o MACs=hmac-sha1 root@192.168.1.1
+```
+
+SSH şifresini girdikten sonra ZTE CLI ikinci kimlik doğrulamasını ister (`Username: root`, parola); sonra:
+```text
+CLI>shell
+ZXHN H298A
+Login: root
+Password: [modem shell parolası]
+BusyBox ... ash
+#
+```
+Ekranda `CLI>shellZXHN` bitişik yazılması çıktı birleştirmesidir. `#` ekranı kullanıcının root kabuğuna geçtiği bağlamdır; gerçek UID kontrolü gerekirse `cat /proc/$$/status | grep -E 'Uid|Gid|CapEff'`. Önceki Telnet denemeleri her zaman gerçek root yetkisi vermedi. Burada **hiçbir parola verilmez / repoya konmaz**.
+
+## 3. ZTE dosyaları ve sınırlar
+
+- `/etc/Wireless/MT7603e/RT2860AP.dat` (2.4 GHz, 2.100 B)
+- `/etc/Wireless/MT7603e/MT7603E_EEPROM.bin` (512 B)
+- `/etc/Wireless/MT7612E/RT2860AP.dat` (5 GHz, 2.217 B)
+- `/etc/Wireless/MT7612E/MT7612E_EEPROM.bin` (512 B)
+- `wlan0..wlan4` ve `wlan5g0..wlan5g4` stok AP arayüzleri. `ra0` deneysel V4+ sürücünün aygıtı, stok STA arayüzü değil.
+- `/etc_ro/Wireless` bulunmadı; genel SDK bu cihazın dosya yapısıyla aynı değil.
+
+## 4. Web paneli v0.1 → v0.3
+
+**Dosyalar [web/](../web/):** `haikui_dmenu.lua` Haikui navigasyonuna menü ekler; `Internet_STA_t.lp` tarayıcıdaki HTML/jQuery kullanıcı arayüzünü oluşturur; `Internet_STA_Switch_lua.lua` AJAX isteklerini allowlist ile yönlendirir; `Internet_STA_WLANProfile_lua.lua` ZTE Wi-Fi veri modeli için salt-okunur probe; `yc_repeater.sh` shell tarafında gerçek SiteSurvey/ifconfig/iwpriv çağrıları; `KURULUM_V03.txt` RAM kurulum metni.
+
+**Gerçekten çalışan:** 2.4 GHz ve 5 GHz SiteSurvey komutlarının ham Wi-Fi tarama çıktıları; menü/CGI/durum bağlantısı (test edilen oturumlar). Çıktıyı SSID seçeneklerine çeviren JS regex her modem çıktısını doğru işlemek zorunda değil.
+
+**Çalışmayan:** `Connect2g` / `Connect5g` → `ApCliEnable` ioctl `Invalid argument`, `APCLI_UNSUPPORTED_BY_DRIVER`, `apcli0` veya `apcli5g0` aygıtı yok. UI'de bağlantı butonu bulunması çalıştığı anlamına gelmez. `Mode7` ağ kopmasına neden olabildi, `bSupportRepeater=0` / `bStaLinkUp=0`. AP ayarları ve Mode7 deneyseldir.
+
+**Orijinal stok sürücüyle ham tarama:**
+```sh
+iwpriv wlan0 set SiteSurvey=1
+sleep 4
+iwpriv wlan0 get_site_survey
+iwpriv wlan5g0 set SiteSurvey=1
+sleep 4
+iwpriv wlan5g0 get_site_survey
+```
+
+**RAM üzerinden kurulum (otomatik değil):**
+```sh
+cp -R /home/httpd /tmp/httpd
+# web/ dosyalarını Windows Tftpd64 ile şu dizine kopyala:
+# haikui_dmenu.lua => /tmp/httpd/haikui_dmenu.lua
+# Internet_STA_*.lp/lua => /tmp/httpd/common_page/
+# yc_repeater.sh => /tmp/yc_repeater.sh
+chmod 700 /tmp/yc_repeater.sh
+mount -o bind /tmp/httpd/haikui_dmenu.lua /home/httpd/haikui_dmenu.lua
+mount -o bind /tmp/httpd/common_page /home/httpd/common_page
+```
+`/home/httpd` stoğu salt-okunur; bu testte `/tmp` ile bind-mount kullanıldı, **reboot sonrası kaybolur**. TFTP örneği `tftp -g -r yc_repeater.sh -l /tmp/yc_repeater.sh 192.168.1.33`. Cihazda dosya yüklemek ZTE `httpd` uygulamasına kalıcı yeni fonksiyon vermez. Eski web kurulumun tam adımları [web/KURULUM_V03.txt](../web/KURULUM_V03.txt) içindedir.
+
+**Geri alma:** `umount /home/httpd/common_page`, sonra `umount /home/httpd/haikui_dmenu.lua`. Mod 7 değiştiyse yalnızca gerektiğinde `sendcmd cspd..multiapd_mgr setmode 1`. Flash/MTD üzerinde bilinmeyen işlemler uygulanmadı.
+
+## 5. Driver ile ilgili çalışma metodumuz
+
+Önce ZTE stok sürücü/yapılandırma yedekleri ve firmware `/etc/autokernelconf` analiz edildi; Linux 2.6.36 orijinal config `source/kernel/` ve derleme için `driver/build/configs/` içine kopyalandı. `MT7603`, `MT7612E` MediaTek donor kaynakları incelendi. `HAS_APCLI=y` ve ZTE uyumluluk yamalarıyla deneysel `.ko` üretildi. MIPS big endian ve `vermagic` derlenebilse de **ZTE kernel ABI'si farklı** çıktı.
+
+V1–V7 sonuçları, programatik MIPS incelemesi, kernel Oops dökümleri ve son saptanan bloklayıcı farklar ayrıntılarıyla [driver.md](driver.md)'de; eski aşama kodları `driver/build/` altında muhafaza edilir. V7 `driver/mt7603eap_v7.ko` arşiv çıktısıdır; tekrar yüklemek tavsiye edilmez.
+
+## 6. Yapılan / yapılmayan
+
+- **Yapılan:** Stok AP tarama, web panel prototipleri, derleme denemeleri, cihaz üzerinde insmod ve V4–V7 testleri, canlı kernel log yakalama, OEM modüllerin offline assembly/ABI denetimi.
+- **Yapılmayan:** Gerçek WPA2 STA association, 4-way handshake, APCLI cihazının çalışması, DHCP uplink, kablolu istemciye internet aktarımı, kalıcı firmware değişimi.
+- **İlerisi:** OEM uyumlu sürücü tasarımı; bir sonraki sürüm yalnızca statik ABI kontrolleri tamamlanınca değerlendirilir. Ayrı kurtarma bağlantısı olmadan tekrarlı `insmod` yapılmaz.
+
+## 7. Modeme canlı log toplama notu
+
+Önceki canlı `cat /proc/kmsg &` kayıtları V5–V7'de Oops'u SSH terminaline taşıdı; `dmesg > /tmp/log` tek başına modem resetinde kaybolur. `echo 0 > /proc/sys/kernel/panic` kernel panic otomatik tekrar başlatma süresini etkiler, **donanım watchdog'larını devre dışı bırakmaz**. **Hiçbir otomatik reboot / zamanlayıcı test scriptine eklenmemeli.** Kernel BUG sonrası kullanıcı bağlantı kopması yaşadı.
+
+## 8. 15 Ekim'den kalan orijinal teknik devir metni (tarihsel kayıt)
+
+Aşağıdaki belge önceki denemeleri özgün tarihsel bağlamında detaylandırır. Eski dosya yolları yeni klasör adlarına uyarlanmıştır. Bazı 'son durum' cümleleri 15 Ekim için geçerlidir; güncel 16 Ekim için yukarıdaki ve driver.md bölümleri esas alınır.
+
+---
+
 # YulCaribe H298A APCLI / Repeater | YENİ GPT'YE TAM TEKNİK DEVİR
 **Son gözden geçirme:** 15 Ekim 2026  
 **Hedef repo:** https://github.com/yulcaribe/appcli  
-**Ayrı ve dokunulmayacak repo:** https://github.com/yulcaribe/vpnengine  
 **Çalışma ilkesi:** Yapılan, cihazda doğrulanan, yalnızca derlenen ve başarısız olan işleri kesin şekilde ayır. Kullanıcı istemedikçe modem flash'ına ve çalışan Wi-Fi sürücülerine dokunma.
 
 ## 0. İLK OKUNACAK ÖZET (YENİ GPT)
@@ -21,7 +123,7 @@ Proje amacı ZTE ZXHN H298A V1.0/V1.0.25 Türk Telekom modemini başka bir WPA2 
 - SoC: MT751020 / MT7510 ailesi; CPU MIPS 34Kc, 32-bit **big endian** MIPS32r2, MT_SMTC SMP.
 - `/proc/version`: `Linux version 2.6.36 (xialei@localhost.localdomain) (gcc version 4.3.4 (GCC) ) #1 SMP Mon Jun 13 23:49:50 CST 2022`.
 - `/proc/cmdline`: yalnızca `es=1`. Bundan tek başına active kernel slot çıkmaz.
-- `/etc/autokernelconf`: firmware ile tutarlı orijinal ZTE Kconfig; repoda `configs/h298a-zte-20220613.config` ve doğrulaması mevcut.
+- `/etc/autokernelconf`: firmware ile tutarlı orijinal ZTE Kconfig; repoda `driver/build/configs/h298a-zte-20220613.config` ve doğrulaması mevcut.
 - Shell: BusyBox 1.17.2, SSH root. Eski OpenSSH istemcilerinde modem MAC algoritması gereği `ssh -o MACs=hmac-sha1 root@192.168.1.1` gerekti.
 - Modem IP `192.168.1.1`. Önceki TFTP PC `192.168.1.33`, kullanıcı Windows klasörü `C:\Users\isa\Desktop\modem`. Bu örnek adresler değişmiş olabilir.
 - Rootfs SquashFS salt okunur; `/tmp` tmpfs sınırlı (~12MB), bind mount kullanılan RAM deneyleri reboot sonrası silinir.
@@ -110,7 +212,7 @@ Güvenlik notu: v0.3 deneysel yönetici panelidir, kapsamlı HTTP CSRF/yetkilend
 
 Mediatek AP Software Programming Guide v4.6, bölüm 11 (p.102-110): gerçek AP-Client `APCLI_SUPPORT` derleme seçeneği gerektirir; normal `apcli0` benzeri cihazda WPA2PSK/AES, SSID, parola ve Enable komutları ile STA/AP köprüleme. Fakat bu belgede listelenen özellik cihazın stok sürücüsünde otomatik var demek değil.
 
-Github `yulcaribe/appcli` deneysel derleme altyapısı `cjdelisle/EN751221-Linux26` kaynak ağacından iki sürücüyü GCC 10 `mips-linux-gnu-` ile `HAS_APCLI=y` oluşturuyor. `configs/h298a-zte-20220613.config` gerçek ZTE config, fakat kernel headers ve OEM patches halen birebir değil.
+Github `yulcaribe/appcli` deneysel derleme altyapısı `cjdelisle/EN751221-Linux26` kaynak ağacından iki sürücüyü GCC 10 `mips-linux-gnu-` ile `HAS_APCLI=y` oluşturuyor. `driver/build/configs/h298a-zte-20220613.config` gerçek ZTE config, fakat kernel headers ve OEM patches halen birebir değil.
 
 - Actions #38636495846 (build #4): iki .ko üretildi; MIPS big endian ve `vermagic` geçiyor; modül çalışma garantisi yok.
 - Actions #38640001017 (build #5): 5 GHz eksik simbol `alloc_etherdev_mq`/`skbmgr_alloc_skb4k` için deneysel sarmalayıcı ile derleme başarılı.
@@ -127,7 +229,7 @@ Tainted: P
 ```
   120sn reboot watchdog çalıştı; sonra `cat /proc/modules` stok modülleri Live gösterdi. Firmware'i değiştirmedi.
 - Actions #38643129823 (build #16) gerçek ZTE Kconfig kullanarak yeniden derledi; **statik gate FAIL**. `net_device_stats` stok 112 B, candidate 92 B. Stok `RTMP_ADAPTER` 1,402,616 B, candidate 1,187,008 B (215,608 B fark). 5GHz'deki yeni derlemenin allocator yolu #5'teki oops yolundan farklılaştı, ama tip düzeni/platform hooks uyumsuzluğu çözülmedi.
-- GitHub üzerinde `scripts/build.sh`, `scripts/check_modules.py`, `docs/zte-vs-apcli-elf-audit.md`, `docs/H298A_APCLI_kaynak_arastirmasi_ve_yol_haritasi.md` sürücü denemelerini belgeliyor. Statik uyuşma **cihazda test başarısı değildir**.
+- GitHub üzerinde `driver/build/scripts/build.sh`, `driver/build/scripts/check_modules.py`, `docs/zte-vs-apcli-elf-audit.md`, `docs/H298A_APCLI_kaynak_arastirmasi_ve_yol_haritasi.md` sürücü denemelerini belgeliyor. Statik uyuşma **cihazda test başarısı değildir**.
 
 Cihaz stok `/proc/kallsyms` sonuçları: `ahbErrChk`, `pcie_init`, `tc3162_enable_irq`, `tc3162_disable_irq`, `os_TCIfQuery[tccicmd]`, `dev_alloc_skb` bulundu; `alloc_etherdev_mq` bulunmadı, buna benzeyen `alloc_etherdev_mqs` vardı. Bazı vendor fonksiyonları yalnızca özgün BSP'de bulunuyor.
 
@@ -142,7 +244,7 @@ Halka açık ve doğrulanmış birebir H298A TTN.21T1_220614 paket bulunmadı. `
 
 ## 7. GÜVENLİ GELİŞTİRME PLANI
 
-**A: Web panelini ayrı tut.** En son v0.3 kaynaklarını repo `webpanel/v0.3/` içine koy; yine de paneldeki yazan/Mode7/STA düğmeleri çalışan özellik olarak pazarlanmasın. Scan frontend parser sorunlarını **stok sürücüleri değiştirmeden**, ham SiteSurvey örnekleriyle test et. CGI access control ve CSRF'yi doğrula.
+**A: Web panelini ayrı tut.** En son v0.3 kaynaklarını repo `web/` içine koy; yine de paneldeki yazan/Mode7/STA düğmeleri çalışan özellik olarak pazarlanmasın. Scan frontend parser sorunlarını **stok sürücüleri değiştirmeden**, ham SiteSurvey örnekleriyle test et. CGI access control ve CSRF'yi doğrula.
 
 **B: Kernel driver işini ayrı tut.** Vendor GPL source + gerçek ZTE headers/build options sağlanana kadar canlı driver değişimini DURDUR. Önce APCLI kapalı stok özelliğe sahip .ko'yu uygun GCC 4.3.4 toolchain ile üretebilmek; sonra bilinçli ABI/symbol karşılaştırması; ancak sonra APCLI=on.
 
@@ -155,7 +257,6 @@ Halka açık ve doğrulanmış birebir H298A TTN.21T1_220614 paket bulunmadı. `
 6. LAN ve AP istemcilerinde L2 bridge / NAT, DHCP ve IPv6 kararları doğrulanıyor.
 7. Ancak sonra güvenli kalıcı uygulama düşünülebilir.
 
-**Kesinlikle yapılmayacaklar:** Yeniden #4/#5/#16 .ko insmod/rmmod, `flash_erase`, bilinmeyen firmware flaşlama, v0.3 UI üstünden Mod7'yi çalışır repeater varsayma, kullanıcı açık istemedikçe `yulcaribe/vpnengine` değiştirme.
 
 ## 8. MEVCUT UYGULAMA / TEST KAYITLARI
 
@@ -177,3 +278,4 @@ c79fb6f5443d8504bc88b638139e0e5d958a4394cb918cc7bfab8021377c67d0  yc_repeater.sh
 Özel hayat/operasyon şifresi veya WLAN PSK hiçbir şekilde GitHub'a eklenmemeli. Kullanıcı kısa, net Türkçe yanıt ister; yalnızca istendiğinde kod/kurulum uygulaması yap; `dur`, `kod yazma`, `şuna dokunma` sınırları kesin.
 
 **YENİ GPT'NİN İLK İŞİ:** Depodaki kaynakları ve bu raporu aç; kullanıcıdan zaten verdiği modem sürümü/çökmüş `.ko` testini yeniden isteme. Çalışan v0.3 GUI'yi koru, gerçek Wi-Fi scanning özelliğini test et; driver portu için OEM kaynaklarını bulmadan yeni live test önermeyip doğrulanabilir araştırmayla devam et.
+
