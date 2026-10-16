@@ -74,3 +74,27 @@ ZTE states source for GPL-governed components can be requested through https://o
 - Main branch and real modem filesystem remain unchanged.
 
 **Conclusion:** No safe, functional H298 APCLI driver is verified. Current blockers are structural; iterative runtime-crash patching must not substitute for real OEM source and kernel ABI reconstruction.
+
+
+## Automated whole-donor source inventory (verified CI 38828995554)
+
+A separate runner step scanned the **entire patched generic MT7603 donor tree** (all 407 C/H files, 311,610 source lines, 10,771,028 source bytes). This is a file-by-file *lexical inventory*, **not** proof that all behaviors match the unknown OEM source.
+
+| Risk category (including comments and macros) | Occurrences |
+|---|---:|
+| Direct skb member access | 26 |
+| skb inline manipulation | 51 |
+| OS packet helper macros | 252 |
+| net_device struct fields | 8 |
+| netdevice queue operations | 13 |
+| DMA operations and wrappers | 64 |
+| PCI/IRQ operations | 74 |
+| EEPROM/firmware/profile operations | 31 |
+| APCLI call sites | 258 |
+| vendor networking references | 8 |
+
+Highest-risk contact files: os/linux/rt_linux.c, common/cmm_data_pci.c, include/os/rt_linux.h, common/cmm_data.c, mcu/andes_mt.c, common/cmm_mac_pci.c, tx_rx/wdev_rx.c. These contain widely used packet and DMA paths; offset changes must be handled at the correct OEM kernel header/toolchain layer rather than individually.
+
+GitHub Actions run: https://github.com/yulcaribe/appcli/actions/runs/38828995554
+
+CI artifact contains **OEM_SOURCE_ABI_INVENTORY.json** with per-file, per-category counts and line-number samples, plus **OEM_ABI_GATE.json**, which returns **BLOCKED** for skb_data, skb_len, and RTMP_ADAPTER allocation mismatch. This preserves measurable results for every source revision.
